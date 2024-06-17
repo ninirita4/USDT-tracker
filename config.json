@@ -1,0 +1,11 @@
+{
+    
+    "database": {
+      "host": "localhost",
+      "user": "root",
+      "password": "21972197",
+      "database": "test01"
+    },
+    "api_keys": "AATYZ1K4NP7AGW299HPD79KCJRYRTB8BIN"
+
+}
