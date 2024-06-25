@@ -1,6 +1,7 @@
 import axios from "axios";
 import mysql from "mysql2/promise";
 import config from "../config.json";
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const API_KEY = config.api_keys;
 const USDT_CONTRACT_ADDRESS = '0xdac17f958d2ee523a2206206994597c13d831ec7';
@@ -20,7 +21,7 @@ const params: any = {
   module: "account",
   action: "tokentx",
   contractaddress: "0xdac17f958d2ee523a2206206994597c13d831ec7", 
-  address: "0x36928500bc1dcd7af6a2b4008875cc336b927d57",
+  address: "0x36928500bc1dcd7af6a2b4008875cc336b927d57", //要查询的地址
   page: 1,
   offset: 100,
   startblock: 0,
@@ -36,6 +37,8 @@ async function fetchTransactions(): Promise<Transaction[]> {
   try {
     const response = await axios.get(endpoint, {
       params: params,
+      proxy: false,
+      httpsAgent: new HttpsProxyAgent(`http://127.0.0.1:1087`)
     });
     if (response.data.status !== '1') {
       throw new Error('Failed to fetch transactions');
@@ -47,8 +50,35 @@ async function fetchTransactions(): Promise<Transaction[]> {
   }
 }
 
+
+
+async function createTableIfNotExists(connection: mysql.Connection): Promise<void> {
+  const createTableSQL = `
+    CREATE TABLE IF NOT EXISTS usdt_transactions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      block_number VARCHAR(255) NOT NULL,
+      timestamp VARCHAR(255) NOT NULL,
+      hash VARCHAR(255) NOT NULL,
+      from_address VARCHAR(255) NOT NULL,
+      to_address VARCHAR(255) NOT NULL,
+      value VARCHAR(255) NOT NULL
+    )
+  `;
+
+  try {
+    await connection.query(createTableSQL);
+  } catch (error) {
+    console.error('Error creating table:', error);
+    throw error;
+  }
+}
+
+
+
 async function insertTransactionsIntoDatabase(transactions: Transaction[]): Promise<void> {
   const connection = await mysql.createConnection(config.database);
+
+  await createTableIfNotExists(connection);
 
   const sql = `
     INSERT INTO usdt_transactions (block_number, timestamp, hash, from_address, to_address, value)
@@ -63,6 +93,8 @@ async function insertTransactionsIntoDatabase(transactions: Transaction[]): Prom
     tx.to,
     tx.value
   ]);
+
+
 
   try {
     await connection.beginTransaction();
