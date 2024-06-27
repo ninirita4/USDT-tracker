@@ -31,6 +31,15 @@ const params: any = {
 
 };
 
+const pool = mysql.createPool({
+  host: config.database.host,
+  user: config.database.user,
+  password: config.database.password,
+  database: config.database.database,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
 
 async function fetchTransactions(): Promise<Transaction[]> {
@@ -50,7 +59,7 @@ async function fetchTransactions(): Promise<Transaction[]> {
   }
 }
 
-
+//这部分sql单独写出去
 
 async function createTableIfNotExists(connection: mysql.Connection): Promise<void> {
   const createTableSQL = `
@@ -65,8 +74,11 @@ async function createTableIfNotExists(connection: mysql.Connection): Promise<voi
     )
   `;
 
+
   try {
+    const connection = await pool.getConnection();
     await connection.query(createTableSQL);
+    connection.release();
   } catch (error) {
     console.error('Error creating table:', error);
     throw error;
@@ -76,9 +88,9 @@ async function createTableIfNotExists(connection: mysql.Connection): Promise<voi
 
 
 async function insertTransactionsIntoDatabase(transactions: Transaction[]): Promise<void> {
-  const connection = await mysql.createConnection(config.database);
+  //const connection = await mysql.createConnection(config.database);
 
-  await createTableIfNotExists(connection);
+  //await createTableIfNotExists(connection);
 
   const sql = `
     INSERT INTO usdt_transactions (block_number, timestamp, hash, from_address, to_address, value)
@@ -96,28 +108,33 @@ async function insertTransactionsIntoDatabase(transactions: Transaction[]): Prom
 
 
 
+
   try {
+    const connection = await pool.getConnection();
     await connection.beginTransaction();
     for (const value of values) {
       await connection.query(sql, value);
     }
     await connection.commit();
+    connection.release();
   } catch (error) {
-    await connection.rollback();
     console.error('Error inserting transactions into database:', error);
     throw error;
-  } finally {
-    await connection.end();
   }
+
 }
+
 
 async function main(): Promise<void> {
   try {
+    //await createTableIfNotExists();
     const transactions = await fetchTransactions();
     await insertTransactionsIntoDatabase(transactions);
     console.log('Transactions successfully inserted into database');
   } catch (error) {
     console.error('Error in main function:', error);
+  } finally {
+    await pool.end();
   }
 }
 
