@@ -6,7 +6,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 const API_KEY = config.api_keys;
 const USDT_CONTRACT_ADDRESS = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 const endpoint = "https://api.etherscan.io/api";
-// const ENDPOINT = "https://api.etherscan.io/api?module=account&action=tokentx&contractaddress=0xdac17f958d2ee523a2206206994597c13d831ec7&page=1&offset=100&startblock=0&endblock=27025780&sort=asc&apikey=AATYZ1K4NP7AGW299HPD79KCJRYRTB8BIN&address=0x36928500bc1dcd7af6a2b4008875cc336b927d57";
+
 
 interface Transaction {
   blockNumber: string;
@@ -16,6 +16,16 @@ interface Transaction {
   to: string;
   value: string;
 }
+
+const api_keys = config.api_keys;
+let apiKeyIndex = 0;
+
+function getNextApiKey(): string {
+  const apiKey = api_keys[apiKeyIndex];
+  apiKeyIndex = (apiKeyIndex + 1) % api_keys.length;
+  return apiKey;
+}
+
 
 const params: any = {
   module: "account",
@@ -27,7 +37,8 @@ const params: any = {
   startblock: 0,
   endblock: 27025780,
   sort: "asc",
-  apikey: "AATYZ1K4NP7AGW299HPD79KCJRYRTB8BIN"
+  apikey: getNextApiKey()
+  // apikey: "AATYZ1K4NP7AGW299HPD79KCJRYRTB8BIN"
 
 };
 
@@ -45,7 +56,7 @@ const pool = mysql.createPool({
 async function fetchTransactions(): Promise<Transaction[]> {
   try {
     const response = await axios.get(endpoint, {
-      params: params,
+      params: { ...params, apikey: getNextApiKey() },
       proxy: false,
       httpsAgent: new HttpsProxyAgent(`http://127.0.0.1:1087`)
     });
@@ -58,6 +69,7 @@ async function fetchTransactions(): Promise<Transaction[]> {
     throw error;
   }
 }
+
 
 //这部分sql单独写出去
 
@@ -88,9 +100,6 @@ async function createTableIfNotExists(connection: mysql.Connection): Promise<voi
 
 
 async function insertTransactionsIntoDatabase(transactions: Transaction[]): Promise<void> {
-  //const connection = await mysql.createConnection(config.database);
-
-  //await createTableIfNotExists(connection);
 
   const sql = `
     INSERT INTO usdt_transactions (block_number, timestamp, hash, from_address, to_address, value)
